@@ -1,0 +1,31 @@
+schemaVersion: 2.2.0
+metadata:
+  name: electron-workspace
+components:
+  - name: electron-container
+    container:
+      # Replace with your pushed image's location
+      image: myregistry.com/myusername/my-electron-devspaces-image:latest
+      mountSources: true
+      # Add any necessary port forwarding or environment variables here
+      # For Electron, you might need X11 forwarding setup if you intend to run the GUI
+      # directly within the DevSpace, which is a more advanced configuration.
+      # A common approach is to only use DevSpaces for code/build/test, not GUI running.
+
+# Define commands for your application (e.g., install, build, run)
+commands:
+  - id: build-app
+    exec:
+      component: electron-container
+      commandLine: "npm run build"
+      workingDir: /app
+  - id: start-dev
+    exec:
+      component: electron-container
+      commandLine: "npm start"
+      workingDir: /app
+
+# Define the default command to run when the workspace starts
+# events:
+#   postStart:
+#     - build-app
