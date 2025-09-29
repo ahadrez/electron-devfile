@@ -48,12 +48,6 @@ commands:
         kind: run
         isDefault: false
 
-  - id: start-display
-    composite:
-      label: Initialize display server
-      commands:
-        - start-xvfb
-      parallel: false
 
   - id: npm-install
     exec:
@@ -89,4 +83,4 @@ commands:
 
 events:
   postStart:
-    - start-display
+    - start-xvfb
