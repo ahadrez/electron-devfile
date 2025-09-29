@@ -16,7 +16,7 @@ components:
         - name: NO_AT_BRIDGE
           value: '1'
         - name: DISPLAY
-          value: ':99'          # Xvfb display
+          value: ':99'
       endpoints:
         - name: https-node
           targetPort: 3000
@@ -24,12 +24,12 @@ components:
         - exposure: none
           name: debug
           targetPort: 5858
+
 commands:
-  # 1) Install minimal GUI deps once
+  # (Optional) Installs Xvfb & deps. Requires the container to allow package installs.
   - id: sys-install-xvfb
     exec:
       component: runtime
-      # if 'sudo' isn't available, drop it; if the container isn't root-capable, use Option B below
       commandLine: |
         microdnf install -y \
           xorg-x11-server-Xvfb dbus dbus-daemon \
@@ -39,18 +39,19 @@ commands:
       workingDir: /projects
       group:
         kind: build
-  # 2) Start a session D-Bus and Xvfb for this container
+
+  # Start a session D-Bus on a fixed path and Xvfb on :99 (runs in background)
   - id: start-gui-services
     exec:
       component: runtime
       commandLine: |
-        dbus-daemon --session --fork --print-address > /tmp/dbus.addr && \
-        export DBUS_SESSION_BUS_ADDRESS=$(cat /tmp/dbus.addr) && \
+        # start a session bus at a fixed socket path
+        dbus-daemon --session --fork --address=unix:path=/tmp/dbus.sock
+        echo -n "unix:path=/tmp/dbus.sock" > /tmp/dbus.addr
+        # start Xvfb
         Xvfb :99 -screen 0 1920x1080x24 -ac +extension RANDR &
       workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: run
-  # 3) npm install
+
   - id: install
     exec:
       component: runtime
@@ -59,7 +60,7 @@ commands:
       group:
         kind: build
         isDefault: true
-  # 4) Run your Electron app (assumes "start": "electron .")
+
   - id: run
     exec:
       component: runtime
@@ -70,6 +71,7 @@ commands:
       group:
         kind: run
         isDefault: true
+
   - id: debug
     exec:
       component: runtime
@@ -78,6 +80,7 @@ commands:
       group:
         kind: debug
         isDefault: true
+
   - id: test
     exec:
       component: runtime
@@ -86,8 +89,10 @@ commands:
       group:
         kind: test
         isDefault: true
+
 events:
+  # If your image allows package installs; otherwise remove this line.
   preStart:
     - sys-install-xvfb
-  preRun:
+  postStart:
     - start-gui-services
