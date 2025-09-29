@@ -8,10 +8,19 @@ attributes:
   # Keep container alive even if no command is running
   controller.devfile.io/storage-type: per-workspace
 
+projects:
+  - name: electron-app
+    # This clones your Electron app into the workspace
+    git:
+      remotes:
+        origin: https://github.com/ahadrez/electron-app.git
+    # Place it under /projects/electron-app
+    clonePath: electron-app
+
 components:
   - name: tools
     container:
-      image: quay.io/upstream/devspaces:electron
+      image: <REGISTRY>/<NAMESPACE>/electron-devspace:latest
       memoryLimit: 2Gi
       cpuLimit: 1500m
       mountSources: true
@@ -43,8 +52,8 @@ commands:
     exec:
       component: tools
       label: npm install
-      commandLine: bash -lc 'cd "$PROJECT_SOURCE" && npm ci || npm install'
-      workingDir: /projects
+      commandLine: bash -lc 'npm ci || npm install'
+      workingDir: ${PROJECTS_ROOT}/electron-app
       group:
         kind: build
         isDefault: true
@@ -54,8 +63,8 @@ commands:
       component: tools
       label: Start Electron (xvfb if available)
       commandLine: |
-        bash -lc 'cd "$PROJECT_SOURCE" && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm start; else npm start; fi'
-      workingDir: /projects
+        bash -lc 'if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm start; else npm start; fi'
+      workingDir: ${PROJECTS_ROOT}/electron-app
       group:
         kind: run
         isDefault: true
@@ -65,8 +74,8 @@ commands:
       component: tools
       label: Test (headless/xvfb)
       commandLine: |
-        bash -lc 'cd "$PROJECT_SOURCE" && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm test; else npm test; fi'
-      workingDir: /projects
+        bash -lc 'if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm test; else npm test; fi'
+      workingDir: ${PROJECTS_ROOT}/electron-app
       group:
         kind: test
         isDefault: true
