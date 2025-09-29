@@ -47,7 +47,8 @@ commands:
       group:
         kind: run
         isDefault: false
-        
+
+
   - id: npm-install
     exec:
       component: tools
@@ -63,7 +64,18 @@ commands:
       component: tools
       label: Start Electron (xvfb if available)
       commandLine: |
-        bash -lc 'if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm start; else npm start; fi'
+        bash -lc '
+          # Start system dbus if available and not running
+          if [ -x /usr/bin/dbus-daemon ] && [ ! -S /run/dbus/system_bus_socket ]; then
+            mkdir -p /run/dbus || true
+            dbus-daemon --system --fork || true
+          fi
+          # Start Xvfb if present (RHEL/UBI provides /usr/bin/Xvfb; xvfb-run may not exist)
+          if [ -x /usr/bin/Xvfb ]; then
+            nohup /usr/bin/Xvfb :99 -screen 0 1280x800x24 >/tmp/xvfb.log 2>&1 &
+            sleep 1
+          fi
+          npm start'
       workingDir: ${PROJECTS_ROOT}/electron-app
       group:
         kind: run
@@ -74,7 +86,16 @@ commands:
       component: tools
       label: Test (headless/xvfb)
       commandLine: |
-        bash -lc 'if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm test; else npm test; fi'
+        bash -lc '
+          if [ -x /usr/bin/dbus-daemon ] && [ ! -S /run/dbus/system_bus_socket ]; then
+            mkdir -p /run/dbus || true
+            dbus-daemon --system --fork || true
+          fi
+          if [ -x /usr/bin/Xvfb ]; then
+            nohup /usr/bin/Xvfb :99 -screen 0 1280x800x24 >/tmp/xvfb.log 2>&1 &
+            sleep 1
+          fi
+          npm test'
       workingDir: ${PROJECTS_ROOT}/electron-app
       group:
         kind: test
