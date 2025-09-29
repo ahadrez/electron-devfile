@@ -1,5 +1,5 @@
 # Devfile for OpenShift Dev Spaces to develop an Electron app
-# Uses your custom UBI Node.js base with Electron system deps.
+# Uses your custom Dev Spaces UDI base image with Electron system deps.
 # 1) Push your built image to a registry accessible by your cluster
 
 schemaVersion: 2.2.0
@@ -38,7 +38,7 @@ components:
       args: ["sleep infinity"]
 
 commands:
-  - id: prestart-xvfb
+  - id: start-xvfb
     exec:
       component: tools
       label: Start Xvfb if present
@@ -82,5 +82,5 @@ commands:
         isDefault: true
 
 events:
-  preStart:
-    - prestart-xvfb
+  postStart:
+    - start-xvfb
