@@ -47,8 +47,7 @@ commands:
       group:
         kind: run
         isDefault: false
-
-
+        
   - id: npm-install
     exec:
       component: tools
@@ -81,6 +80,4 @@ commands:
         kind: test
         isDefault: true
 
-events:
-  postStart:
-    - start-xvfb
+# No lifecycle events are required; Xvfb is optional and npm-start uses xvfb-run when available.
