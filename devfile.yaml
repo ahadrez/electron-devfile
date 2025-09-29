@@ -1,26 +1,76 @@
-schemaVersion: 2.2.2
+# Devfile for OpenShift Dev Spaces to develop an Electron app
+# Uses your custom UBI Node.js base with Electron system deps.
+
+schemaVersion: 2.2.0
 metadata:
-  name: nodejs-electron-xvfb
+  name: electron-devspace
+attributes:
+  # Keep container alive even if no command is running
+  controller.devfile.io/storage-type: per-workspace
+
 components:
-  - name: runtime
+  - name: tools
     container:
       image: quay.io/upstream/devspaces:electron
-      args: ['tail','-f','/dev/null']
-      memoryLimit: 2048Mi
+      memoryLimit: 2Gi
+      cpuLimit: 1500m
       mountSources: true
+      sourceMapping: /projects
       env:
-        - name: DEBUG_PORT
-          value: '5858'
-        - name: ELECTRON_DISABLE_SANDBOX
-          value: '1'
-        - name: NO_AT_BRIDGE
-          value: '1'
         - name: DISPLAY
-          value: ':99'    # Xvfb display
-      endpoints:
-        - name: https-node
-          targetPort: 3000
-          protocol: https
-        - exposure: none
-          name: debug
-          targetPort: 5858
+          value: ":99"
+        - name: ELECTRON_DISABLE_SANDBOX
+          value: "1"
+        - name: NO_AT_BRIDGE
+          value: "1"
+      # Keep container running
+      command: ["bash", "-lc"]
+      args: ["sleep infinity"]
+
+commands:
+  - id: prestart-xvfb
+    exec:
+      component: tools
+      label: Start Xvfb if present
+      commandLine: |
+        bash -lc '[ -x /usr/bin/Xvfb ] && (nohup /usr/bin/Xvfb :99 -screen 0 1280x800x24 >/tmp/xvfb.log 2>&1 & sleep 1) || echo "Xvfb not installed; running headless"'
+      workingDir: /projects
+      group:
+        kind: run
+        isDefault: false
+
+  - id: npm-install
+    exec:
+      component: tools
+      label: npm install
+      commandLine: bash -lc 'cd "$PROJECT_SOURCE" && npm ci || npm install'
+      workingDir: /projects
+      group:
+        kind: build
+        isDefault: true
+
+  - id: npm-start
+    exec:
+      component: tools
+      label: Start Electron (xvfb if available)
+      commandLine: |
+        bash -lc 'cd "$PROJECT_SOURCE" && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm start; else npm start; fi'
+      workingDir: /projects
+      group:
+        kind: run
+        isDefault: true
+
+  - id: npm-test
+    exec:
+      component: tools
+      label: Test (headless/xvfb)
+      commandLine: |
+        bash -lc 'cd "$PROJECT_SOURCE" && if command -v xvfb-run >/dev/null 2>&1; then xvfb-run -a npm test; else npm test; fi'
+      workingDir: /projects
+      group:
+        kind: test
+        isDefault: true
+
+events:
+  preStart:
+    - prestart-xvfb
