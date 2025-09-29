@@ -1,5 +1,6 @@
 # Devfile for OpenShift Dev Spaces to develop an Electron app
 # Uses your custom UBI Node.js base with Electron system deps.
+# 1) Push your built image to a registry accessible by your cluster
 
 schemaVersion: 2.2.0
 metadata:
