@@ -4,7 +4,7 @@ metadata:
 components:
   - name: runtime
     container:
-      image: registry.access.redhat.com/ubi8/nodejs-18:1-32
+      image: quay.io/upstream/devspaces:electron
       args: ['tail','-f','/dev/null']
       memoryLimit: 2048Mi
       mountSources: true
@@ -16,7 +16,7 @@ components:
         - name: NO_AT_BRIDGE
           value: '1'
         - name: DISPLAY
-          value: ':99'
+          value: ':99'    # Xvfb display
       endpoints:
         - name: https-node
           targetPort: 3000
@@ -26,73 +26,46 @@ components:
           targetPort: 5858
 
 commands:
-  # (Optional) Installs Xvfb & deps. Requires the container to allow package installs.
-  - id: sys-install-xvfb
-    exec:
-      component: runtime
-      commandLine: |
-        microdnf install -y \
-          xorg-x11-server-Xvfb dbus dbus-daemon \
-          libX11 libXcomposite libXcursor libXi libXtst libXScrnSaver \
-          libxrandr libxdamage gtk3 nss alsa-lib mesa-libgbm libdrm && \
-        microdnf clean all
-      workingDir: /projects
-      group:
-        kind: build
-
-  # Start a session D-Bus on a fixed path and Xvfb on :99 (runs in background)
-  - id: start-gui-services
-    exec:
-      component: runtime
-      commandLine: |
-        # start a session bus at a fixed socket path
-        dbus-daemon --session --fork --address=unix:path=/tmp/dbus.sock
-        echo -n "unix:path=/tmp/dbus.sock" > /tmp/dbus.addr
-        # start Xvfb
-        Xvfb :99 -screen 0 1920x1080x24 -ac +extension RANDR &
-      workingDir: ${PROJECT_SOURCE}
-
-  - id: install
+  - id: npm-install
     exec:
       component: runtime
       commandLine: npm install
       workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: build
-        isDefault: true
+      group: { kind: build, isDefault: true }
 
-  - id: run
+  - id: boot-gui
+    exec:
+      component: runtime
+      commandLine: |
+        dbus-daemon --session --fork --address=unix:path=/tmp/dbus.sock
+        echo -n "unix:path=/tmp/dbus.sock" > /tmp/dbus.addr
+        Xvfb :99 -screen 0 1920x1080x24 -ac +extension RANDR &
+      workingDir: ${PROJECT_SOURCE}
+
+  - id: run-app
     exec:
       component: runtime
       commandLine: |
         export DBUS_SESSION_BUS_ADDRESS=$(cat /tmp/dbus.addr 2>/dev/null || echo)
         npm start
       workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: run
-        isDefault: true
+
+  - id: run
+    composite:
+      label: Run Electron (Xvfb)
+      commands: [boot-gui, run-app]
+      group: { kind: run, isDefault: true }
 
   - id: debug
     exec:
       component: runtime
       commandLine: npm run debug
       workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: debug
-        isDefault: true
+      group: { kind: debug, isDefault: true }
 
   - id: test
     exec:
       component: runtime
       commandLine: npm test
       workingDir: ${PROJECT_SOURCE}
-      group:
-        kind: test
-        isDefault: true
-
-events:
-  # If your image allows package installs; otherwise remove this line.
-  preStart:
-    - sys-install-xvfb
-  postStart:
-    - start-gui-services
+      group: { kind: test, isDefault: true }
