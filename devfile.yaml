@@ -20,7 +20,7 @@ projects:
 components:
   - name: tools
     container:
-      image: <REGISTRY>/<NAMESPACE>/electron-devspace:latest
+      image: quay.io/upstream/devspaces:electron
       memoryLimit: 2Gi
       cpuLimit: 1500m
       mountSources: true
