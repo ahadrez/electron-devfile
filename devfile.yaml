@@ -1,31 +1,93 @@
-schemaVersion: 2.2.0
+schemaVersion: 2.2.2
 metadata:
-  name: electron-workspace
+  name: nodejs-electron-xvfb
 components:
-  - name: electron-container
+  - name: runtime
     container:
-      # Replace with your pushed image's location
-      image: myregistry.com/myusername/my-electron-devspaces-image:latest
+      image: registry.access.redhat.com/ubi8/nodejs-18:1-32
+      args: ['tail','-f','/dev/null']
+      memoryLimit: 2048Mi
       mountSources: true
-      # Add any necessary port forwarding or environment variables here
-      # For Electron, you might need X11 forwarding setup if you intend to run the GUI
-      # directly within the DevSpace, which is a more advanced configuration.
-      # A common approach is to only use DevSpaces for code/build/test, not GUI running.
-
-# Define commands for your application (e.g., install, build, run)
+      env:
+        - name: DEBUG_PORT
+          value: '5858'
+        - name: ELECTRON_DISABLE_SANDBOX
+          value: '1'
+        - name: NO_AT_BRIDGE
+          value: '1'
+        - name: DISPLAY
+          value: ':99'          # Xvfb display
+      endpoints:
+        - name: https-node
+          targetPort: 3000
+          protocol: https
+        - exposure: none
+          name: debug
+          targetPort: 5858
 commands:
-  - id: build-app
+  # 1) Install minimal GUI deps once
+  - id: sys-install-xvfb
     exec:
-      component: electron-container
-      commandLine: "npm run build"
-      workingDir: /app
-  - id: start-dev
+      component: runtime
+      # if 'sudo' isn't available, drop it; if the container isn't root-capable, use Option B below
+      commandLine: |
+        microdnf install -y \
+          xorg-x11-server-Xvfb dbus dbus-daemon \
+          libX11 libXcomposite libXcursor libXi libXtst libXScrnSaver \
+          libxrandr libxdamage gtk3 nss alsa-lib mesa-libgbm libdrm && \
+        microdnf clean all
+      workingDir: /projects
+      group:
+        kind: build
+  # 2) Start a session D-Bus and Xvfb for this container
+  - id: start-gui-services
     exec:
-      component: electron-container
-      commandLine: "npm start"
-      workingDir: /app
-
-# Define the default command to run when the workspace starts
-# events:
-#   postStart:
-#     - build-app
+      component: runtime
+      commandLine: |
+        dbus-daemon --session --fork --print-address > /tmp/dbus.addr && \
+        export DBUS_SESSION_BUS_ADDRESS=$(cat /tmp/dbus.addr) && \
+        Xvfb :99 -screen 0 1920x1080x24 -ac +extension RANDR &
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+  # 3) npm install
+  - id: install
+    exec:
+      component: runtime
+      commandLine: npm install
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+        isDefault: true
+  # 4) Run your Electron app (assumes "start": "electron .")
+  - id: run
+    exec:
+      component: runtime
+      commandLine: |
+        export DBUS_SESSION_BUS_ADDRESS=$(cat /tmp/dbus.addr 2>/dev/null || echo)
+        npm start
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+        isDefault: true
+  - id: debug
+    exec:
+      component: runtime
+      commandLine: npm run debug
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: debug
+        isDefault: true
+  - id: test
+    exec:
+      component: runtime
+      commandLine: npm test
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: test
+        isDefault: true
+events:
+  preStart:
+    - sys-install-xvfb
+  preRun:
+    - start-gui-services
